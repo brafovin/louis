@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stein-Spiele</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  background:#0d1117;
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  font-family:'Segoe UI',sans-serif;
+  color:#fff;
+  gap:40px;
+}
+h1{font-size:2.5rem;color:#f5a623;letter-spacing:3px;text-align:center}
+p{color:#888;font-size:.95rem}
+.games{display:flex;gap:28px;flex-wrap:wrap;justify-content:center}
+.card{
+  background:#161b22;
+  border:2px solid #30363d;
+  border-radius:14px;
+  padding:32px 36px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:14px;
+  width:260px;
+  transition:.18s;
+  text-decoration:none;
+  color:inherit;
+}
+.card:hover{border-color:#f5a623;transform:translateY(-4px);box-shadow:0 8px 32px rgba(245,166,35,.2)}
+.card .icon{font-size:3.5rem}
+.card h2{font-size:1.2rem;color:#f5a623}
+.card p{color:#888;font-size:.82rem;text-align:center;line-height:1.6}
+.badge{
+  background:#f5a623;color:#111;
+  font-size:.7rem;font-weight:bold;
+  padding:3px 10px;border-radius:20px;
+}
+</style>
+</head>
+<body>
+<div style="text-align:center">
+  <h1>🪨 Stein-Spiele</h1>
+  <p>Wähle dein Spiel</p>
+</div>
+<div class="games">
+  <a class="card" href="stadtflucht.html">
+    <span class="icon">🏙️</span>
+    <h2>Stadtflucht</h2>
+    <span class="badge">NEU</span>
+    <p>Renne durch die Stadt vor dem Stein! Mit Skins, Multiplayer, Power-Ups und Hindernissen.</p>
+    <p style="color:#555;font-size:.75rem">WASD / Pfeiltasten · 2 Spieler</p>
+  </a>
+  <a class="card" href="spiel.html">
+    <span class="icon">🌿</span>
+    <h2>Stein-Flucht</h2>
+    <p>Das Original! Flüchte vor dem rollenden Stein in alle Richtungen.</p>
+    <p style="color:#555;font-size:.75rem">WASD / Pfeiltasten · 1 Spieler</p>
+  </a>
+</div>
+</body>
+</html>
