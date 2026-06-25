@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>Stein-Flucht!</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #1a1a2e;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      font-family: 'Segoe UI', sans-serif;
+      color: #eee;
+      overflow: hidden;
+    }
+    h1 { font-size: 2rem; margin-bottom: 8px; letter-spacing: 2px; color: #f5a623; }
+    #info { font-size: 0.85rem; margin-bottom: 12px; color: #aaa; }
+    #canvas-wrap {
+      position: relative;
+      border: 3px solid #f5a623;
+      border-radius: 8px;
+      box-shadow: 0 0 30px rgba(245,166,35,0.3);
+    }
+    canvas { display: block; border-radius: 6px; background: #2d5a27; }
+    #hud {
+      display: flex;
+      gap: 40px;
+      margin-top: 12px;
+      font-size: 1rem;
+    }
+    #hud span { color: #f5a623; font-weight: bold; }
+    #overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      border-radius: 6px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+    }
+    #overlay h2 { font-size: 2.5rem; color: #f5a623; }
+    #overlay p  { font-size: 1rem; color: #ccc; }
+    #overlay button {
+      padding: 12px 32px;
+      font-size: 1.1rem;
+      background: #f5a623;
+      color: #1a1a2e;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: transform 0.1s, background 0.1s;
+    }
+    #overlay button:hover { background: #ffc94d; transform: scale(1.05); }
+  </style>
+</head>
+<body>
+
+<h1>🪨 Stein-Flucht!</h1>
+<p id="info">Bewege dich mit WASD oder Pfeiltasten</p>
+
+<div id="canvas-wrap">
+  <canvas id="c" width="700" height="500"></canvas>
+  <div id="overlay">
+    <h2>🪨 Stein-Flucht!</h2>
+    <p>Renne vor dem rollenden Stein davon!</p>
+    <p style="color:#aaa;font-size:0.85rem">WASD oder Pfeiltasten zum Bewegen</p>
+    <button id="startBtn">Spiel starten</button>
+  </div>
+</div>
+
+<div id="hud">
+  <div>Zeit: <span id="scoreEl">0.0s</span></div>
+  <div>Bestzeit: <span id="bestEl">0.0s</span></div>
+  <div>Geschwindigkeit: <span id="speedEl">1x</span></div>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+const overlay  = document.getElementById('overlay');
+const startBtn = document.getElementById('startBtn');
+const scoreEl  = document.getElementById('scoreEl');
+const bestEl   = document.getElementById('bestEl');
+const speedEl  = document.getElementById('speedEl');
+
+let state = 'menu'; // menu | playing | dead
+let player, stone, particles, startTime, elapsed, best, keys, stoneAngle;
+let trailPoints = [];
+
+function init() {
+  player = { x: W/2, y: H/2, r: 14, speed: 3.5, vx: 0, vy: 0 };
+  stone  = { x: 60,  y: 60,  r: 22, speed: 1.8 };
+  particles = [];
+  trailPoints = [];
+  startTime = performance.now();
+  elapsed = 0;
+  stoneAngle = 0;
+  keys = {};
+  state = 'playing';
+}
+
+// Grass tiles drawn once on off-screen canvas
+const grassCanvas = document.createElement('canvas');
+grassCanvas.width = W; grassCanvas.height = H;
+const gCtx = grassCanvas.getContext('2d');
+(function drawGrass() {
+  gCtx.fillStyle = '#2d5a27';
+  gCtx.fillRect(0, 0, W, H);
+  const blades = [
+    '#3a6e32','#326028','#4a7a3e','#285224','#3d6b30'
+  ];
+  for (let i = 0; i < 400; i++) {
+    gCtx.strokeStyle = blades[Math.floor(Math.random()*blades.length)];
+    gCtx.lineWidth = 1.5;
+    gCtx.globalAlpha = 0.5 + Math.random()*0.5;
+    const bx = Math.random()*W, by = Math.random()*H;
+    const len = 4 + Math.random()*6;
+    const tilt = (Math.random()-0.5)*0.8;
+    gCtx.beginPath();
+    gCtx.moveTo(bx, by);
+    gCtx.lineTo(bx + tilt*len, by - len);
+    gCtx.stroke();
+  }
+  gCtx.globalAlpha = 1;
+})();
+
+function spawnParticle(x, y) {
+  for (let i = 0; i < 3; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 0.5 + Math.random() * 1.5;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle)*speed,
+      vy: Math.sin(angle)*speed,
+      life: 1,
+      r: 2 + Math.random()*3,
+      color: ['#8B7355','#A09070','#6B5A45'][Math.floor(Math.random()*3)]
+    });
+  }
+}
+
+function drawPlayer() {
+  const p = player;
+  // Shadow
+  ctx.beginPath();
+  ctx.ellipse(p.x, p.y+p.r+2, p.r*0.8, 5, 0, 0, Math.PI*2);
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ctx.fill();
+
+  // Body
+  const bodyGrad = ctx.createRadialGradient(p.x-4, p.y-4, 2, p.x, p.y, p.r);
+  bodyGrad.addColorStop(0, '#FFD700');
+  bodyGrad.addColorStop(1, '#B8860B');
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+  ctx.fillStyle = bodyGrad;
+  ctx.fill();
+
+  // Face
+  ctx.fillStyle = '#000';
+  // Eyes
+  const dx = stone.x - p.x, dy = stone.y - p.y;
+  const ang = Math.atan2(dy, dx);
+  const eyeOffset = 5;
+  const ex = p.x + Math.cos(ang)*3;
+  const ey = p.y + Math.sin(ang)*3;
+  ctx.beginPath();
+  ctx.arc(ex - Math.sin(ang)*eyeOffset, ey + Math.cos(ang)*eyeOffset, 2.5, 0, Math.PI*2);
+  ctx.arc(ex + Math.sin(ang)*eyeOffset, ey - Math.cos(ang)*eyeOffset, 2.5, 0, Math.PI*2);
+  ctx.fill();
+
+  // Scared mouth
+  ctx.beginPath();
+  ctx.arc(ex, ey, 4, 0.2, Math.PI-0.2);
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Legs animation
+  const legPhase = performance.now() / 100;
+  ctx.strokeStyle = '#B8860B';
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  const lx = p.vx !== 0 || p.vy !== 0 ? Math.sin(legPhase)*6 : 0;
+  ctx.beginPath();
+  ctx.moveTo(p.x - 5, p.y + p.r - 2);
+  ctx.lineTo(p.x - 5 + lx, p.y + p.r + 7);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(p.x + 5, p.y + p.r - 2);
+  ctx.lineTo(p.x + 5 - lx, p.y + p.r + 7);
+  ctx.stroke();
+}
+
+function drawStone() {
+  const s = stone;
+
+  // Shadow
+  ctx.beginPath();
+  ctx.ellipse(s.x, s.y+s.r+2, s.r*0.9, 6, 0, 0, Math.PI*2);
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.fill();
+
+  // Stone body
+  ctx.save();
+  ctx.translate(s.x, s.y);
+  ctx.rotate(stoneAngle);
+
+  const grad = ctx.createRadialGradient(-6, -6, 2, 0, 0, s.r);
+  grad.addColorStop(0, '#BDB9B3');
+  grad.addColorStop(0.5, '#8B8680');
+  grad.addColorStop(1, '#5a5550');
+  ctx.beginPath();
+  ctx.arc(0, 0, s.r, 0, Math.PI*2);
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Cracks
+  ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(-8, -5); ctx.lineTo(-2, 2); ctx.lineTo(-6, 8);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(4, -10); ctx.lineTo(8, -2); ctx.lineTo(4, 3);
+  ctx.stroke();
+
+  // Highlight
+  ctx.beginPath();
+  ctx.arc(-7, -7, 6, 0, Math.PI*2);
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  ctx.fill();
+
+  ctx.restore();
+
+  // Warning pulse when close
+  const dist = Math.hypot(stone.x - player.x, stone.y - player.y);
+  if (dist < 120) {
+    const alpha = (1 - dist/120) * 0.4 * (0.5 + 0.5*Math.sin(performance.now()/100));
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r + 10, 0, Math.PI*2);
+    ctx.strokeStyle = `rgba(255,50,50,${alpha})`;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  }
+}
+
+function update(now) {
+  if (state !== 'playing') return;
+
+  elapsed = (now - startTime) / 1000;
+  const speedMult = 1 + elapsed * 0.07;
+  stone.speed = 1.8 * speedMult;
+  player.speed = 3.5 + elapsed * 0.02;
+
+  speedEl.textContent = speedMult.toFixed(1) + 'x';
+
+  // Player input
+  let mx = 0, my = 0;
+  if (keys['ArrowLeft']  || keys['a'] || keys['A']) mx -= 1;
+  if (keys['ArrowRight'] || keys['d'] || keys['D']) mx += 1;
+  if (keys['ArrowUp']   || keys['w'] || keys['W']) my -= 1;
+  if (keys['ArrowDown'] || keys['s'] || keys['S']) my += 1;
+
+  if (mx !== 0 || my !== 0) {
+    const len = Math.hypot(mx, my);
+    player.vx = (mx/len) * player.speed;
+    player.vy = (my/len) * player.speed;
+  } else {
+    player.vx *= 0.8;
+    player.vy *= 0.8;
+  }
+
+  player.x = Math.max(player.r, Math.min(W - player.r, player.x + player.vx));
+  player.y = Math.max(player.r, Math.min(H - player.r, player.y + player.vy));
+
+  // Stone follows player
+  const dx = player.x - stone.x;
+  const dy = player.y - stone.y;
+  const dist = Math.hypot(dx, dy);
+  stone.x += (dx/dist) * stone.speed;
+  stone.y += (dy/dist) * stone.speed;
+  stone.x = Math.max(stone.r, Math.min(W - stone.r, stone.x));
+  stone.y = Math.max(stone.r, Math.min(H - stone.r, stone.y));
+
+  stoneAngle += stone.speed * 0.07;
+
+  spawnParticle(stone.x, stone.y);
+
+  // Trail
+  trailPoints.push({ x: player.x, y: player.y, life: 1 });
+  if (trailPoints.length > 20) trailPoints.shift();
+  trailPoints.forEach(t => t.life -= 0.05);
+
+  // Particles
+  particles.forEach(p => {
+    p.x += p.vx; p.y += p.vy; p.life -= 0.03;
+    p.vy += 0.05;
+  });
+  particles = particles.filter(p => p.life > 0);
+
+  // Collision
+  if (dist < player.r + stone.r) {
+    state = 'dead';
+    if (elapsed > best) best = elapsed;
+    showDeath();
+  }
+}
+
+function drawTrail() {
+  trailPoints.forEach((t, i) => {
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, 4 * t.life, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(255,215,0,${t.life * 0.3})`;
+    ctx.fill();
+  });
+}
+
+function drawParticles() {
+  particles.forEach(p => {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r * p.life, 0, Math.PI*2);
+    ctx.fillStyle = p.color;
+    ctx.globalAlpha = p.life;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  });
+}
+
+function drawHazardLines() {
+  // Danger lines between stone and player when close
+  const dist = Math.hypot(stone.x - player.x, stone.y - player.y);
+  if (dist < 150) {
+    const alpha = (1 - dist/150) * 0.15;
+    ctx.beginPath();
+    ctx.moveTo(stone.x, stone.y);
+    ctx.lineTo(player.x, player.y);
+    ctx.strokeStyle = `rgba(255,50,50,${alpha})`;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+}
+
+function drawHUD() {
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath();
+  ctx.roundRect(10, 10, 160, 38, 6);
+  ctx.fill();
+
+  ctx.fillStyle = '#f5a623';
+  ctx.font = 'bold 18px Segoe UI';
+  ctx.fillText(`⏱ ${elapsed.toFixed(1)}s`, 20, 35);
+}
+
+function render(now) {
+  ctx.drawImage(grassCanvas, 0, 0);
+  drawTrail();
+  drawHazardLines();
+  drawParticles();
+  drawPlayer();
+  drawStone();
+  drawHUD();
+
+  scoreEl.textContent = elapsed.toFixed(1) + 's';
+  bestEl.textContent  = (best || 0).toFixed(1) + 's';
+}
+
+function loop(now) {
+  update(now);
+  if (state !== 'menu') render(now);
+  requestAnimationFrame(loop);
+}
+
+function showDeath() {
+  overlay.innerHTML = `
+    <h2>💀 Erwischt!</h2>
+    <p>Der Stein hat dich getroffen!</p>
+    <p style="font-size:1.3rem;color:#f5a623">Zeit: <strong>${elapsed.toFixed(2)}s</strong></p>
+    <p style="color:#aaa;font-size:0.9rem">Bestzeit: ${(best||0).toFixed(2)}s</p>
+    <button id="startBtn2">Nochmal spielen</button>
+  `;
+  overlay.style.display = 'flex';
+  document.getElementById('startBtn2').onclick = () => {
+    overlay.style.display = 'none';
+    init();
+  };
+}
+
+best = 0;
+
+startBtn.onclick = () => {
+  overlay.style.display = 'none';
+  init();
+};
+
+document.addEventListener('keydown', e => {
+  keys[e.key] = true;
+  e.preventDefault();
+});
+document.addEventListener('keyup', e => {
+  keys[e.key] = false;
+});
+
+// Mobile support
+let touchStart = null;
+canvas.addEventListener('touchstart', e => {
+  touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  e.preventDefault();
+}, { passive: false });
+canvas.addEventListener('touchmove', e => {
+  if (!touchStart || !keys) return;
+  const dx = e.touches[0].clientX - touchStart.x;
+  const dy = e.touches[0].clientY - touchStart.y;
+  keys = {};
+  if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+    if (dx < -10) keys['a'] = true;
+    if (dx >  10) keys['d'] = true;
+    if (dy < -10) keys['w'] = true;
+    if (dy >  10) keys['s'] = true;
+  }
+  e.preventDefault();
+}, { passive: false });
+canvas.addEventListener('touchend', () => { keys = {}; });
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
