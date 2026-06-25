@@ -461,14 +461,14 @@ function update(){
   // Camera target: slightly ahead of rightmost player
   const alive=players.filter(p=>!p.dead);
 
-  // Stone always tracks ~220px behind the rightmost player
+  // Stone always rolls – catches up if player is far ahead, slows if very close
   if(alive.length){
     const playerX=Math.max(...alive.map(p=>p.wx));
-    const stoneTarget=playerX-220;
-    const diff=stoneTarget-stone.wx;
-    const stoneMove=diff*0.07; // smooth follow
-    stone.wx+=stoneMove;
-    stone.angle+=Math.abs(stoneMove)*.06;
+    const dist=playerX-stone.wx;
+    const catchUp=dist>280?(dist-280)*0.04:0;
+    const move=stone.speed+catchUp;
+    stone.wx+=move;
+    stone.angle+=move*.055;
   }
   if(alive.length){
     const rx=Math.max(...alive.map(p=>p.wx));
