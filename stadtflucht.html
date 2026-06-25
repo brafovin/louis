@@ -102,8 +102,8 @@ class Player{
     this.lives=3; this.inv=0; this.dead=false; this.onGnd=false;
     this.pup=null; this.pupT=0; this.leg=0; this.duck=false;
   }
-  get spd(){ return this.pup==='shoe'?5.8:this.pup==='board'?5.2:3.9; }
-  get jf(){  return this.pup==='shoe'?-14:-11; }
+  get spd(){ return this.pup==='shoe'?4.5:this.pup==='board'?5.2:3.9; }
+  get jf(){  return this.pup==='shoe'?-12:-11; }
   get sx(){ return this.wx-camX; }
 }
 
