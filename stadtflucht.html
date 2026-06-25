@@ -458,8 +458,10 @@ function update(){
   stone.speed=3.2+elapsed*.065;
   score=Math.floor(elapsed*12);
 
-  stone.wx+=stone.speed;
-  stone.angle+=stone.speed*.048;
+  const anyMoving=players.some(p=>!p.dead&&(Math.abs(p.vx)>0.3||!p.onGnd));
+  const stoneMove=anyMoving?stone.speed:0;
+  stone.wx+=stoneMove;
+  stone.angle+=stoneMove*.048;
 
   // Camera target: slightly ahead of rightmost player
   const alive=players.filter(p=>!p.dead);
