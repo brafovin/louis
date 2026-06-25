@@ -469,7 +469,7 @@ function update(){
   }
 
   genBuildings(camX+W*3);
-  while(nextObsX<camX+W+400){spawnObs(nextObsX);nextObsX+=180+Math.random()*220;}
+  while(nextObsX<camX+W+400){spawnObs(nextObsX);nextObsX+=400+Math.random()*300;}
   while(nextPupX<camX+W+400){spawnPup(nextPupX);nextPupX+=320+Math.random()*380;}
   obstacles=obstacles.filter(o=>o.wx>camX-150);
   pups=pups.filter(p=>!p.col&&p.wx>camX-150);
