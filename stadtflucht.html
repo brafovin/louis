@@ -34,7 +34,7 @@ canvas{display:block;border:3px solid #f5a623;border-radius:8px;box-shadow:0 0 4
 
 <script>
 const W=900, H=520, GY=H-90; // ground y
-const PW=22, PH=42;
+const PW=26, PH=54;
 
 // ── SKINS ──
 const SKINS=[
@@ -458,13 +458,18 @@ function update(){
   stone.speed=3.2+elapsed*.065;
   score=Math.floor(elapsed*12);
 
-  const anyMoving=players.some(p=>!p.dead&&(Math.abs(p.vx)>0.3||!p.onGnd));
-  const stoneMove=anyMoving?stone.speed:0;
-  stone.wx+=stoneMove;
-  stone.angle+=stoneMove*.048;
-
   // Camera target: slightly ahead of rightmost player
   const alive=players.filter(p=>!p.dead);
+
+  // Stone always tracks ~220px behind the rightmost player
+  if(alive.length){
+    const playerX=Math.max(...alive.map(p=>p.wx));
+    const stoneTarget=playerX-220;
+    const diff=stoneTarget-stone.wx;
+    const stoneMove=diff*0.07; // smooth follow
+    stone.wx+=stoneMove;
+    stone.angle+=Math.abs(stoneMove)*.06;
+  }
   if(alive.length){
     const rx=Math.max(...alive.map(p=>p.wx));
     camX+=(rx-240-camX)*.1;
